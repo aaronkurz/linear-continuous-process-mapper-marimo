@@ -1,3 +1,26 @@
+# LCM Marimo
+
+This is the marimo version of the LCPM.
+
+To get started:
+
+```
+uv sync
+``` 
+
+Then to run:
+```
+uv run marimo run marimo_app.py
+```
+
+Or to edit;
+```
+uv run marimo edit marimo_app.py
+```
+
+The included log is the preprocessed version of DomesticDeclarations2H.xes (XES → CSV extracting only case, activity, and timestamp columns).
+
+========== OLD DOCS ==========
 # Linear Continuous Process Mapper
 
 A prototypical implementation of linear and continuous process maps for the exploratory analysis of sequential behavior in event logs. This Python application builds upon interactive Sankey diagrams to provide effective visualizations of process behavior. The system loads event logs, constructs process maps using different abstractions (such as sequence-based, set-based, and last-activity-based), and visualizes them to display relevant insights in a precise yet interpretable way.

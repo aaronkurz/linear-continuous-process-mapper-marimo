@@ -1,4 +1,3 @@
-from dash import html
 import pandas as pd
 from typing import List, Tuple, Union
 import plotly.graph_objects as go
@@ -7,7 +6,6 @@ from core.services.graph_service import GraphService
 from core.domain.graph_analyzer import GraphAnalyzer
 from core.visualization.sankey_visualizer import SankeyVisualizer
 from core.constants import ACTIVITY_COL
-import dash_bootstrap_components as dbc
 
 
 class ProcessAnalyticsService:
@@ -110,14 +108,26 @@ class ProcessAnalyticsService:
         )
         return fig
 
-    def generate_metadata_table(self, metadata: Union[dict, None]) -> Union[dbc.Table, None]:
+    @staticmethod
+    def summarize_metadata(metadata: Union[dict, None]) -> Union[dict, None]:
+        """Framework-agnostic metadata summary, shared by all frontends."""
         if metadata is None:
             return None
-        table_metadata = {
+        return {
             "Total Nodes": metadata.get("total_nodes", 0),
             "Nodes with Leakage > 0": metadata.get("nodes_leakage_gt_0", 0),
             "Terminal Nodes": metadata.get("terminal_nodes", 0),
         }
+
+    def generate_metadata_table(self, metadata: Union[dict, None]):
+        # Dash is imported lazily so that the analytics core stays importable
+        # in non-Dash frontends, such as the marimo notebook.
+        from dash import html
+        import dash_bootstrap_components as dbc
+
+        table_metadata = self.summarize_metadata(metadata)
+        if table_metadata is None:
+            return None
 
         table_rows = [html.Tr([html.Th(k), html.Td(str(v))]) for k, v in table_metadata.items()]
         metadata_table = dbc.Table([html.Tbody(table_rows)], bordered=True, hover=True, size="sm")
