@@ -9,24 +9,65 @@ def _():
     import marimo as mo
     import pandas as pd
 
-    def load_study_log(name: str = "log.csv") -> pd.DataFrame:
-        """Read the pre-processed event log from `public/`.
+    from tracker import init_marimo, omit_functions, operation_type
 
-        Resolved relative to the notebook rather than the working directory,
-        so the notebook can be launched from anywhere.
-        """
-        source = str(mo.notebook_location() / "public" / name)
-        return pd.read_csv(source, parse_dates=["time:timestamp"])
+    _notebook_dir = mo.notebook_location()
+    _pmprov_dir = _notebook_dir / ".pmprov"
+    _artifact_dir = _pmprov_dir / "artifacts"
+    _db_path = _pmprov_dir / "provenance.db"
+    _artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    event_log = load_study_log()
-    return event_log, mo
+    DATA_FILE = _notebook_dir / "public" / "log.csv"
+
+    # init_marimo() and every import downstream cells depend on must live in
+    # one cell -- pmprov's AST rewriter can't add its own dependency edges to
+    # Marimo's reactive graph, so cell ordering has to come from the normal
+    # dependency mechanism instead (every pipeline cell below takes `pd` or
+    # `DATA_FILE` as a parameter, which transitively orders it after this one).
+    rt = init_marimo(
+        history_name="Linear Continuous Process Mapper",
+        branch_name="main",
+        db_path=str(_db_path),
+        artifact_dir=str(_artifact_dir),
+    )
+
+    operation_type("data_loading", pd.read_csv)
+
+    # UI construction and state-plumbing calls -- not analysis operations, so
+    # tracing them automatically would just bury the real pipeline steps
+    # (data_loading / apply_folds / service_construction / visualization) in
+    # noise.
+    omit_functions(
+        "notebook_location",
+        "state", "get_folds", "get_fold_error", "get_view", "build_view",
+        "get_all_activities", "sorted",
+        "multiselect", "dropdown", "switch", "text", "button", "array",
+        "table", "md", "vstack", "hstack", "accordion", "callout",
+        "update_layout", "summarize_metadata",
+    )
+
+    return DATA_FILE, mo, operation_type, pd, rt
 
 
 @app.cell(hide_code=True)
-def _(event_log):
+def _(DATA_FILE, pd):
+    # Tracked: registered above as "data_loading". Resolved relative to the
+    # notebook rather than the working directory, so the notebook can be
+    # launched from anywhere.
+    event_log = pd.read_csv(str(DATA_FILE), parse_dates=["time:timestamp"])
+    return (event_log,)
+
+
+@app.cell(hide_code=True)
+def _(event_log, operation_type):
     from app.factory import create_process_analytics_service
     from core.constants import ACTIVITY_COL
+    from core.services.process_analytics_service import ProcessAnalyticsService
 
+    operation_type("service_construction", create_process_analytics_service)
+    operation_type("visualization", ProcessAnalyticsService.generate_sankey_figure)
+
+    @operation_type("transformation")
     def apply_folds(log, fold_specs):
         """Rename every folded activity to its fold name, as the Dash app does."""
         if not fold_specs:
@@ -39,17 +80,11 @@ def _(event_log):
         return folded
 
     # Built once from the unfolded log. This is the source of truth for which
-    # activities exist, so the folding UI keeps offering original activity names
-    # no matter what folds are currently defined. It is also reused directly
-    # whenever the committed view has no folds, which avoids a ~0.6s rebuild.
+    # activities exist, so the folding UI keeps offering original activity
+    # names no matter what folds are currently defined.
     base_service = create_process_analytics_service(event_log)
     base_activities = base_service.get_all_activities()
-    return (
-        apply_folds,
-        base_activities,
-        base_service,
-        create_process_analytics_service,
-    )
+    return apply_folds, base_activities, create_process_analytics_service
 
 
 @app.cell(hide_code=True)
@@ -364,33 +399,42 @@ def _(
 @app.cell(hide_code=True)
 def _(
     apply_folds,
-    base_service,
     create_process_analytics_service,
     default_view,
     event_log,
     get_view,
     mo,
 ):
-    # Depends only on the committed view, so control changes never land here.
+    # Depends only on the committed view, so control changes never land here
+    # -- and it re-runs exactly once per Refresh click.
+    #
+    # apply_folds() and generate_sankey_figure() below are both unconditional,
+    # top-level statements (not nested in `if`/`else`): pmprov's AST rewriter
+    # only wraps top-level Assign/Expr-with-Call statements in a cell, never
+    # ones nested inside control flow, so hiding either call behind an `if`
+    # would silently stop it from being tracked. apply_folds() already no-ops
+    # when there are no folds, and generate_sankey_figure() already no-ops
+    # (returns metadata=None) when there are no activities, so neither branch
+    # actually needs its own guard here -- the guard moves to *after* the
+    # call, on the result, instead. This does give up the old "reuse
+    # base_service when there are no folds" optimization, since the service
+    # now has to be rebuilt every Refresh for both steps to be traceable.
     _view = get_view() or default_view
 
-    if _view["folds"]:
-        _service = create_process_analytics_service(
-            apply_folds(event_log, _view["folds"])
-        )
-    else:
-        _service = base_service
+    folded_log = apply_folds(event_log, _view["folds"])
+    service = create_process_analytics_service(folded_log)
 
-    if not _view["activities"]:
+    figure, metadata = service.generate_sankey_figure(
+        selected_activities=_view["activities"],
+        builder_key=_view["builder"],
+        merge_threshold=None,
+        allow_loops=_view["allow_loops"],
+        visualize_empty_cases=_view["show_empty"],
+    )
+
+    if metadata is None:
         result = mo.md("*Select at least one activity, then click Refresh.*")
     else:
-        figure, metadata = _service.generate_sankey_figure(
-            selected_activities=_view["activities"],
-            builder_key=_view["builder"],
-            merge_threshold=None,
-            allow_loops=_view["allow_loops"],
-            visualize_empty_cases=_view["show_empty"],
-        )
         figure.update_layout(height=700)
         result = mo.vstack(
             [
@@ -404,7 +448,7 @@ def _(
                     " · ".join(
                         f"**{k}**: {v}"
                         for k, v in (
-                            _service.summarize_metadata(metadata) or {}
+                            service.summarize_metadata(metadata) or {}
                         ).items()
                     )
                 ),
