@@ -419,6 +419,21 @@ def _(
     # call, on the result, instead. This does give up the old "reuse
     # base_service when there are no folds" optimization, since the service
     # now has to be rebuilt every Refresh for both steps to be traceable.
+    #
+    # Concretely, this removed two guards that used to wrap the tracked
+    # calls directly:
+    #   if _view["folds"]:
+    #       folded_log = apply_folds(...)
+    #       service = create_process_analytics_service(folded_log.data)
+    #   else:
+    #       service = base_service
+    #   ...
+    #   if not _view["activities"]:
+    #       result = mo.md("*Select at least one activity...*")
+    #   else:
+    #       figure, metadata = service.generate_sankey_figure(...)
+    # Both calls now run unconditionally instead, and the branching happens
+    # below on `metadata` (the call's result) rather than on the view.
     _view = get_view() or default_view
 
     folded_log = apply_folds(event_log, _view["folds"])
