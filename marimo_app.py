@@ -44,9 +44,37 @@ def _():
         "multiselect", "dropdown", "switch", "text", "button", "array",
         "table", "md", "vstack", "hstack", "accordion", "callout",
         "update_layout", "summarize_metadata",
+        # pmprov's own API calls below -- a bare top-level call to
+        # rt.last_call_params(...) would otherwise be traced like any other
+        # cell statement and pollute the provenance graph with steps for
+        # pmprov's own bookkeeping.
+        "last_call_params",
     )
 
-    return DATA_FILE, mo, operation_type, pd, rt
+    # Recover the last committed configuration from a resumed provenance
+    # history (pmprov resumes by default -- see init_marimo() above), so a
+    # kernel restart doesn't reset every fold/activity/toggle back to its
+    # hardcoded default. None on a fresh history, or one that never got past
+    # data loading. generate_sankey_figure is called below as a bound method
+    # (service.generate_sankey_figure(...)), so pmprov records its func_name
+    # with the receiver prefix -- "service.generate_sankey_figure", not
+    # "generate_sankey_figure". Its real kwarg names (selected_activities/
+    # builder_key/allow_loops/visualize_empty_cases) also come from how it's
+    # actually called below, not from pmprov's own naming.
+    _last_folds_params = rt.last_call_params("apply_folds")
+    _last_sankey_params = rt.last_call_params("service.generate_sankey_figure")
+    initial_folds = _last_folds_params["fold_specs"] if _last_folds_params else []
+    initial_sankey_params = _last_sankey_params
+
+    return (
+        DATA_FILE,
+        initial_folds,
+        initial_sankey_params,
+        mo,
+        operation_type,
+        pd,
+        rt,
+    )
 
 
 @app.cell(hide_code=True)
@@ -88,7 +116,7 @@ def _(event_log, operation_type):
 
 
 @app.cell(hide_code=True)
-def _(base_activities):
+def _(base_activities, initial_folds, initial_sankey_params):
     def build_view(folds, activities, builder, allow_loops, show_empty):
         """The single constructor for a committed view snapshot.
 
@@ -113,22 +141,37 @@ def _(base_activities):
 
         return _normalised(a) == _normalised(b)
 
-    # What the map renders before anything has been committed.
-    default_view = build_view(
-        folds=[],
-        activities=base_activities,
-        builder="set_based",
-        allow_loops=True,
-        show_empty=True,
-    )
+    # What the map renders before anything has been committed. On a resumed
+    # history this is the prior session's last committed view (see
+    # initial_sankey_params in the init cell), so the map shows the same
+    # settings immediately -- no Refresh click needed. On a fresh history
+    # (or one that never got past data loading), falls back to today's
+    # hardcoded defaults.
+    if initial_sankey_params is not None:
+        default_view = build_view(
+            folds=initial_folds,
+            activities=initial_sankey_params["selected_activities"],
+            builder=initial_sankey_params["builder_key"],
+            allow_loops=initial_sankey_params["allow_loops"],
+            show_empty=initial_sankey_params["visualize_empty_cases"],
+        )
+    else:
+        default_view = build_view(
+            folds=[],
+            activities=base_activities,
+            builder="set_based",
+            allow_loops=True,
+            show_empty=True,
+        )
     return build_view, default_view, views_equal
 
 
 @app.cell(hide_code=True)
-def _(mo):
+def _(initial_folds, mo):
     # A fold is {"name": str, "activities": [str]}, matching the Dash
-    # `folding-store` format.
-    get_folds, set_folds = mo.state([])
+    # `folding-store` format. Seeded from the resumed history's last commit
+    # (see initial_folds in the init cell) rather than always starting empty.
+    get_folds, set_folds = mo.state(initial_folds)
     get_fold_error, set_fold_error = mo.state("")
 
     # The committed view: the only thing the (expensive) map cell depends on.
@@ -276,12 +319,36 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(map_activities, mo):
+def _(initial_sankey_params, map_activities, mo):
     # Recreated whenever the fold set changes, which re-selects every activity
-    # including any new fold name.
+    # including any new fold name. Defaults come from the resumed history's
+    # last commit (initial_sankey_params) when present, so the control panel
+    # matches what the map already shows via default_view -- otherwise falls
+    # back to today's hardcoded defaults.
+    _builder_key_to_label = {
+        "set_based": "Set-Based",
+        "sequence_based": "Sequence-Based",
+        "last_activity_based": "Last-Activity-Based",
+    }
+    if initial_sankey_params is not None:
+        _default_activities = [
+            a for a in initial_sankey_params["selected_activities"]
+            if a in map_activities
+        ] or map_activities
+        _default_builder = _builder_key_to_label.get(
+            initial_sankey_params["builder_key"], "Set-Based"
+        )
+        _default_allow_loops = initial_sankey_params["allow_loops"]
+        _default_show_empty = initial_sankey_params["visualize_empty_cases"]
+    else:
+        _default_activities = map_activities
+        _default_builder = "Set-Based"
+        _default_allow_loops = True
+        _default_show_empty = True
+
     activities = mo.ui.multiselect(
         options=map_activities,
-        value=map_activities,
+        value=_default_activities,
         label="Activities",
     )
     builder = mo.ui.dropdown(
@@ -290,11 +357,11 @@ def _(map_activities, mo):
             "Sequence-Based": "sequence_based",
             "Last-Activity-Based": "last_activity_based",
         },
-        value="Set-Based",
+        value=_default_builder,
         label="Generic map",
     )
-    allow_loops = mo.ui.switch(value=True, label="Allow self-loops")
-    show_empty = mo.ui.switch(value=True, label="Visualize empty traces")
+    allow_loops = mo.ui.switch(value=_default_allow_loops, label="Allow self-loops")
+    show_empty = mo.ui.switch(value=_default_show_empty, label="Visualize empty traces")
     return activities, allow_loops, builder, show_empty
 
 

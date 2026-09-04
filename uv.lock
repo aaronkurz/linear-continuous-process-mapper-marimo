@@ -1261,7 +1261,7 @@ requires-dist = [
     { name = "platformdirs", specifier = "==4.3.8" },
     { name = "plotly", specifier = "==6.9.0" },
     { name = "pm4py", specifier = ">=2.7.19.8" },
-    { name = "pmprov", extras = ["full"], specifier = "==0.3.0" },
+    { name = "pmprov", extras = ["full"], specifier = "==0.4.0" },
     { name = "prometheus-client", specifier = "==0.22.1" },
     { name = "prompt-toolkit", specifier = "==3.0.51" },
     { name = "psutil", specifier = "==7.0.0" },
@@ -2033,7 +2033,7 @@ wheels = [
 
 [[package]]
 name = "pmprov"
-version = "0.3.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ipywidgets" },
@@ -2044,9 +2044,9 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/eb/fdc11b7ca9506b302bbb2aba3b13001c5d9988605b6b5523100755aa7484/pmprov-0.3.0.tar.gz", hash = "sha256:ceb19420f8a91ab8f44c13b3ff0308f4225e9a4a11a1eaa785ec1aedec9813bc", size = 63886, upload-time = "2026-09-02T15:03:56.773Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/ae/f90251094d6fa6bc57068534b3b8da4823a98a2d5aea7d87975bac9102a6/pmprov-0.4.0.tar.gz", hash = "sha256:b7983ede686a40020edede3cb39b16658e92ed9a0222873a2dfdbafc50175086", size = 67664, upload-time = "2026-09-04T11:17:36.885Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/fb/6cdea0a0ffe52c73068af42f87fd3fbc1cb89c7f9cbcb73d9286b47b0726/pmprov-0.3.0-py3-none-any.whl", hash = "sha256:ea9916965c80ab3bd0254aee0deaca3e6741ba37c61d2b5f5ecc2371a8945da2", size = 71779, upload-time = "2026-09-02T15:03:55.657Z" },
+    { url = "https://files.pythonhosted.org/packages/15/ec/fc9300f99788b0a38a5b8afcd2e07e514c146091c80520d91bc9d6c2699a/pmprov-0.4.0-py3-none-any.whl", hash = "sha256:3ab40a17c91a97bc4f96e94061c4ef44d37ad672e9b2ef77f74e351102c8472d", size = 75477, upload-time = "2026-09-04T11:17:35.551Z" },
 ]
 
 [package.optional-dependencies]
