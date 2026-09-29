@@ -35,3 +35,5 @@ dist/
 
 # Datasets
 datasets/
+
+__marimo__/
