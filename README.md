@@ -1,5 +1,15 @@
 # LCM Marimo
 
+# Linear Continuous Process Mapper
+
+A prototypical implementation of linear and continuous process maps for the exploratory analysis of sequential behavior in event logs. This Python application builds upon interactive Sankey diagrams to provide effective visualizations of process behavior. The system loads event logs, constructs process maps using different abstractions (such as sequence-based, set-based, and last-activity-based), and visualizes them to display relevant insights in a precise yet interpretable way.
+
+## Overview
+![Annotated interface screenshot](resources/interface-screenshot-annotated.png)
+UI of the application. Users choose an event log from the `logs/` folder via the event log selector (H), and can either analyze it as-is or apply further transformations by editing the marimo notebook. The UI supports folding activities (A) and activity selection (B). Furthermore, users can select from the three generic LCMs: sequence-, set-, or last-activity abstraction (C) and choose whether to visualize self-loops and empty traces (D). After selecting the desired visualization controls, they can refresh the visualization (E), which refreshes the Sankey diagram (F). Here, they can freely reposition nodes to adjust the visualization to their needs. More details about edges and nodes are revealed on hover (G).
+
+## How to Run
+
 This is the marimo version of the LCPM.
 
 To get started:
@@ -18,31 +28,21 @@ Or to edit;
 uv run marimo edit marimo_app.py
 ```
 
-The included log is the preprocessed version of DomesticDeclarations2H.xes (XES → CSV extracting only case, activity, and timestamp columns).
+### Event logs
 
-========== OLD DOCS ==========
-# Linear Continuous Process Mapper
+Put event logs in the `logs/` folder and choose one from the **Event log** dropdown at the top of the app. Both `.xes` and `.csv` files are supported. A CSV needs these columns:
 
-A prototypical implementation of linear and continuous process maps for the exploratory analysis of sequential behavior in event logs. This Python application builds upon interactive Sankey diagrams to provide effective visualizations of process behavior. The system loads event logs, constructs process maps using different abstractions (such as sequence-based, set-based, and last-activity-based), and visualizes them to display relevant insights in a precise yet interpretable way.
+- `case:concept:name`: case ID
+- `concept:name`: activity
+- `time:timestamp`: timestamp
 
-## Overview
-![Annotated interface screenshot](resources/ann-interf-screensh.png)
-Usage flow and UI of the application. Users can either provide an event log as-is or apply further transformations in a Jupyter notebook (Flow). The UI supports folding activities (A) and activity selection (B). Furthermore, users can select from the three generic LCMs: sequence-, set-, or last-activity abstraction (C) and choose whether to visualize self-loops and empty traces (D). After selecting the desired visualization controls, they can refresh the visualization (E), which refreshes the Sankey diagram (F). Here, they can freely reposition nodes to adjust the  visualization to their needs. More details about edges and nodes are revealed on hover (G).
-
-## How to Run
-
-**Standalone Web Application (UI-only)**: Run `python main.py` from the project root. Specify the file path of the event log that
-should be analyzed. To specify a different dataset, modify the `file_name` variable in `main.py`. This mode provides the web interface without the ability for interactive Python-based log enrichments.
-
-**Jupyter Notebook**: The Jupyter notebook is especially meant for experimentation with log transformations beyond the ones offered in the UI. Open and run `app_notebook_basic.ipynb` as a general template, or `app_notebook_RF_enrichment.ipynb` which serves as an example.
+The included `logs/log.csv` is a preprocessed version of DomesticDeclarations2H.xes, converted from XES to CSV with only the case, activity, and timestamp columns kept.
 
 ## Project Structure
 
-**Supplementary Material**: A PDF document mapped to the paper's supplementary material is located in the root of the repository.
 
-**main.py** - The main entry point for running the standalone web application.
 
-**dapp_fact.py** - Dash Application factory unifying standalone and Jupyter notebook deployments.
+**marimo_app.py** - The main entry point for running the application, via a marimo notebook.
 
 **app** - Application factory and dependency injection layer. Contains the main logic that wires together all
 components (data processors, graph builders, analyzers) to create the complete process analytics service.
@@ -59,9 +59,6 @@ components (data processors, graph builders, analyzers) to create the complete p
   analytics pipeline from raw data to visualizations
 - **visualization** - Interactive Sankey diagram generator using Plotly that converts enriched process graphs into
   color-coded flow visualizations with hover details and activity legends
-
-**layout** - Dash-based web application frontend providing interactive controls for activity selection, graph builder
-choice, visualization simplification options, and the main graph display area
 
 ## Repository Authors
 - [@moritzfaes](https://github.com/moritzfaes)
