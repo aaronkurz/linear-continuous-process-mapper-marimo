@@ -7,19 +7,50 @@ app = marimo.App(width="full")
 @app.cell(hide_code=True)
 def _():
     import marimo as mo
-    import pandas as pd
+    from core.data.data_loader import LOG_SUFFIXES, load_event_log
 
-    def load_study_log(name: str = "log.csv") -> pd.DataFrame:
-        """Read the pre-processed event log from `public/`.
+    # Resolved relative to the notebook rather than the working directory, so
+    # the notebook can be launched from anywhere.
+    log_dir = mo.notebook_location() / "logs"
+    log_names = []
+    if log_dir.is_dir():
+        log_names = sorted(
+            p.name
+            for p in log_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in LOG_SUFFIXES
+        )
 
-        Resolved relative to the notebook rather than the working directory,
-        so the notebook can be launched from anywhere.
-        """
-        source = str(mo.notebook_location() / "public" / name)
-        return pd.read_csv(source, parse_dates=["time:timestamp"])
+    mo.stop(
+        not log_names,
+        mo.callout(
+            mo.md(f"No event logs found. Add a `.csv` or `.xes` file to `{log_dir}`."),
+            kind="warn",
+        ),
+    )
 
-    event_log = load_study_log()
-    return event_log, mo
+    # Defined in its own cell: a UI element's value is not readable from the
+    # cell that creates it.
+    log_picker = mo.ui.dropdown(
+        options=log_names,
+        value="log.csv" if "log.csv" in log_names else log_names[0],
+        label="Event log",
+    )
+    return load_event_log, log_dir, log_picker, mo
+
+
+@app.cell(hide_code=True)
+def _(load_event_log, log_dir, log_picker, mo):
+    # Show a readable message for a bad file instead of a traceback.
+    try:
+        event_log = load_event_log(log_dir / log_picker.value)
+    except Exception as _e:
+        mo.stop(
+            True,
+            mo.callout(
+                mo.md(f"Could not load `{log_picker.value}`: {_e}"), kind="danger"
+            ),
+        )
+    return (event_log,)
 
 
 @app.cell(hide_code=True)
@@ -28,7 +59,7 @@ def _(event_log):
     from core.constants import ACTIVITY_COL
 
     def apply_folds(log, fold_specs):
-        """Rename every folded activity to its fold name, as the Dash app does."""
+        """Rename every folded activity to its fold name."""
         if not fold_specs:
             return log
         mapping = {
@@ -90,9 +121,13 @@ def _(base_activities):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    # A fold is {"name": str, "activities": [str]}, matching the Dash
-    # `folding-store` format.
+def _(event_log, mo):
+    # Referencing the log makes this cell re-run when another log is picked,
+    # which resets folds and the committed view; they name activities that
+    # may not exist in the new log.
+    event_log
+
+    # A fold is {"name": str, "activities": [str]}.
     get_folds, set_folds = mo.state([])
     get_fold_error, set_fold_error = mo.state("")
 
@@ -338,6 +373,7 @@ def _(
     allow_loops,
     builder,
     folding_panel,
+    log_picker,
     mo,
     refresh_button,
     refresh_status,
@@ -346,6 +382,7 @@ def _(
     mo.vstack(
         [
             mo.md("## Linear Continuous Process Mapper"),
+            log_picker,
             mo.hstack([builder, allow_loops, show_empty], justify="start", gap=2),
             activities,
             folding_panel,
