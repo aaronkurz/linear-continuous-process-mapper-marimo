@@ -42,6 +42,12 @@ The included `logs/log.csv` is a preprocessed version of DomesticDeclarations2H.
 
 The widgets in `marimo_app.py` are one way to call the `lcm` library. The same maps can be drawn from code, without any widgets. To fix a state you found interactively, copy the call from **Reproduce this map in code** below the map.
 
+`programmatic_example.py` is a worked analysis of the included log in this style. It compares map types, folds activities, measures what each activity adds to a map, and transforms the log before mapping it. It has no widgets and is meant to be read with its code visible, so open it in edit mode:
+
+```
+uv run marimo edit programmatic_example.py
+```
+
 ```python
 import lcm
 
@@ -77,6 +83,8 @@ Display the figure directly. Wrapping it in `mo.ui.plotly()` leaves a blank plot
 
 **marimo_app.py** - The main entry point for running the application, via a marimo notebook. It is also the example of
 interactive use of the library.
+
+**programmatic_example.py** - An example analysis that uses the library from code, without widgets.
 
 **lcm** - The library, independent of marimo. `lcm/__init__.py` wires together all components (data processors, graph
 builders, analyzers) in `get_service`. It contains the main analytical components:
