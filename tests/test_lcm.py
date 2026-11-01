@@ -205,6 +205,17 @@ def test_a_fold_may_reuse_the_name_of_one_of_its_members():
     assert links(figure) == {("START", "A", 1), ("A", "A", 1)}
 
 
+def test_activities_can_be_listed_as_they_appear_after_folding():
+    service = lcm.get_service(make_log({"c1": "ABC"}))
+    assert service.get_all_activities(folds={"F": ["A", "B"]}) == ["C", "F"]
+
+
+def test_listing_activities_rejects_invalid_folds():
+    service = lcm.get_service(make_log({"c1": "ABC"}))
+    with pytest.raises(ValueError, match="Z"):
+        service.get_all_activities(folds={"F": ["Z"]})
+
+
 def test_folds_apply_only_to_the_call_they_are_passed_to():
     service = lcm.get_service(make_log({"c1": "AB"}))
     service.generate(folds={"F": ["A", "B"]})

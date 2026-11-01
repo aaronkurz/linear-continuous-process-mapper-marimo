@@ -24,8 +24,29 @@ class ProcessAnalyticsService:
 
         self.traces = self.data_processor.prepare_traces(event_log)
 
-    def get_all_activities(self) -> List[str]:
-        return sorted({act for trace in self.traces for act in trace})
+    def get_all_activities(
+        self, folds: Optional[Dict[str, List[str]]] = None
+    ) -> List[str]:
+        """List the activities of the log, as they appear after `folds`.
+
+        Raises:
+            ValueError: If `folds` are invalid.
+        """
+        folds = folds or {}
+        known = {act for trace in self.traces for act in trace}
+        folded = set()
+        for name, members in folds.items():
+            if not name.strip():
+                raise ValueError("Every fold needs a name.")
+            if not members:
+                raise ValueError(f"Fold '{name}' has no activities.")
+            self._reject(set(members) - known, f"Fold '{name}' has unknown activities")
+            self._reject(set(members) & folded, f"Fold '{name}' reuses folded activities")
+            folded |= set(members)
+            if name in known - set(members):
+                raise ValueError(f"Fold '{name}' has the name of another activity.")
+
+        return sorted((known - folded) | set(folds))
 
     def generate(
         self,
@@ -60,7 +81,9 @@ class ProcessAnalyticsService:
         """
         map_type = MapType(map_type)
         folds = folds or {}
-        selected_activities = self._resolve_activities(activities, folds)
+        selected_activities = self._select_activities(
+            activities, self.get_all_activities(folds)
+        )
 
         traces = self.data_processor.apply_folds(self.traces, folds)
         variants, empty_cases = self.data_processor.create_variants(
@@ -79,30 +102,17 @@ class ProcessAnalyticsService:
             "empty_cases": empty_cases,
         }
 
-    def _resolve_activities(
-        self, activities: Optional[List[str]], folds: Dict[str, List[str]]
+    def _select_activities(
+        self, activities: Optional[List[str]], available: List[str]
     ) -> List[str]:
-        """Check the choices against the log; return the activities to draw."""
-        known = set(self.get_all_activities())
-        folded = set()
-        for name, members in folds.items():
-            if not name.strip():
-                raise ValueError("Every fold needs a name.")
-            if not members:
-                raise ValueError(f"Fold '{name}' has no activities.")
-            self._reject(set(members) - known, f"Fold '{name}' has unknown activities")
-            self._reject(set(members) & folded, f"Fold '{name}' reuses folded activities")
-            folded |= set(members)
-            if name in known - set(members):
-                raise ValueError(f"Fold '{name}' has the name of another activity.")
-
-        available = (known - folded) | set(folds)
+        """Check the chosen activities; return the ones to draw."""
         if activities is None:
-            return sorted(available)
+            return available
         if not activities:
             raise ValueError("Select at least one activity.")
         self._reject(
-            set(activities) - available, "Unknown activities (folded ones go by fold name)"
+            set(activities) - set(available),
+            "Unknown activities (folded ones go by fold name)",
         )
         return list(activities)
 
