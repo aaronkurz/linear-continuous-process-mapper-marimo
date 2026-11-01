@@ -36,7 +36,20 @@ Put event logs in the `logs/` folder and choose one from the **Event log** dropd
 - `concept:name`: activity
 - `time:timestamp`: timestamp
 
-The included `logs/log.csv` is a preprocessed version of DomesticDeclarations2H.xes, converted from XES to CSV with only the case, activity, and timestamp columns kept.
+The included `logs/log.csv` is a preprocessed subset of **BPI Challenge 2020:
+Domestic Declarations** by Boudewijn van Dongen (2020), Version 1,
+4TU.ResearchData.
+Source: https://doi.org/10.4121/uuid:3f422315-ed9d-4882-891f-e180b5b4feb5
+
+The subset contains 8,260 cases and 46,375 events; all included cases start
+in 2018. It was converted from `DomesticDeclarations2H.xes` to CSV, retaining
+only case ID, activity, and timestamp, with timestamps expressed in UTC.
+
+This dataset is licensed under
+[Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/).
+Its reuse and redistribution are subject to that license, including its
+attribution and noncommercial-use conditions. The repository’s MIT license
+applies to the code, not to this dataset.
 
 ## Programmatic Use
 
