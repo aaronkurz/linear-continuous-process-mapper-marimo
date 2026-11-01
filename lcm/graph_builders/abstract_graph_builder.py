@@ -1,6 +1,6 @@
-import pandas as pd
 import networkx as nx
 from abc import ABC, abstractmethod
+from typing import List
 
 
 class AbstractGraphBuilder(ABC):
@@ -8,7 +8,7 @@ class AbstractGraphBuilder(ABC):
 
     @abstractmethod
     def build(
-        self, case_log: pd.DataFrame, seq_variant_col: str, allow_loops: bool = True
+        self, variants: List[List[str]], allow_loops: bool = True
     ) -> nx.MultiDiGraph:
         pass
 

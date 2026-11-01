@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pm4py
 import pandas as pd
-from core.constants import ACTIVITY_COL, CASE_ID_COL, TIMESTAMP_COL
-from core.logger_config import setup_logger
+from lcm.constants import TIMESTAMP_COL
+from lcm.data.data_processor import check_columns
+from lcm.logger_config import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -44,11 +45,5 @@ def load_event_log(file_path) -> pd.DataFrame:
             f"Unsupported log type '{suffix}'; expected one of {', '.join(LOG_SUFFIXES)}."
         )
 
-    missing = [
-        col
-        for col in (CASE_ID_COL, ACTIVITY_COL, TIMESTAMP_COL)
-        if col not in event_log.columns
-    ]
-    if missing:
-        raise ValueError(f"'{path.name}' is missing column(s): {', '.join(missing)}.")
+    check_columns(event_log, f"'{path.name}'")
     return event_log

@@ -3,6 +3,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 from typing import Dict, Any
 
+from lcm.constants import EMPTY_TRACE
+
 
 class SankeyVisualizer:
     """Converts an enriched graph into a Plotly Sankey figure."""
@@ -35,8 +37,7 @@ class SankeyVisualizer:
             act: activity_colors[i % len(activity_colors)]
             for i, act in enumerate(activities_for_coloring)
         }
-        activity_color_map["EMPTY TRACE"] = "lightgrey"
-        
+        activity_color_map[EMPTY_TRACE] = "lightgrey"
 
         # Process nodes
         for node, data in G.nodes(data=True):
@@ -55,7 +56,7 @@ class SankeyVisualizer:
             # Determine color based on semantic state
             if data["label"] == "START":
                 node_color = "white"
-            elif data["label"] in ["EMPTY_TRACE", "{EMPTY_TRACE}"]:
+            elif data["label"] in [EMPTY_TRACE, f"{{{EMPTY_TRACE}}}"]:
                 node_color = "white"
             elif metrics.get("is_terminal", False):
                 node_color = "black"

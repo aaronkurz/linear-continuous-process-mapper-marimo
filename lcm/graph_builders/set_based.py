@@ -1,20 +1,17 @@
-import pandas as pd
 import networkx as nx
 from collections import defaultdict
+from typing import List
 
 from .abstract_graph_builder import AbstractGraphBuilder
 
 
 class SetBasedPrefixGraphBuilder(AbstractGraphBuilder):
-    def __init__(self, allow_loops: bool = True):
-        self._allow_loops = allow_loops
-
     @property
     def name(self) -> str:
         return "Set-Based Prefix Graph"
 
     def build(
-        self, case_log: pd.DataFrame, seq_variant_col: str, allow_loops: bool = True
+        self, variants: List[List[str]], allow_loops: bool = True
     ) -> nx.MultiDiGraph:
         """
         Build a prefix graph from a case log
@@ -22,8 +19,7 @@ class SetBasedPrefixGraphBuilder(AbstractGraphBuilder):
         state_counts = defaultdict(int)
         transitions = []  # store each transition as (from_state, to_state, activity)
 
-        for _, row in case_log.iterrows():
-            activities = row[seq_variant_col]
+        for activities in variants:
             current_state = frozenset()
             state_counts[current_state] += 1
 
@@ -31,8 +27,8 @@ class SetBasedPrefixGraphBuilder(AbstractGraphBuilder):
                 new_state = frozenset(activities[: i + 1])
                 if current_state != new_state or allow_loops:
                     transitions.append((current_state, new_state, activity))
+                    state_counts[new_state] += 1
                 current_state = new_state
-                state_counts[current_state] += 1
 
         G = nx.MultiDiGraph()
         # add nodes
