@@ -1,20 +1,17 @@
-import pandas as pd
 import networkx as nx
 from collections import defaultdict
+from typing import List
 
 from .abstract_graph_builder import AbstractGraphBuilder
 
 
 class LastActivityBasedGraphBuilder(AbstractGraphBuilder):
-    def __init__(self, allow_loops: bool = True):
-        self._allow_loops = allow_loops
-
     @property
     def name(self) -> str:
         return "Last-Activity-Based Graph"
 
     def build(
-        self, case_log: pd.DataFrame, seq_variant_col: str, allow_loops: bool = True
+        self, variants: List[List[str]], allow_loops: bool = True
     ) -> nx.MultiDiGraph:
         """
         Build a graph where each node is the last activity executed in the prefix.
@@ -24,18 +21,17 @@ class LastActivityBasedGraphBuilder(AbstractGraphBuilder):
         node_weights = defaultdict(int)  # Total times each activity appears as last
         START_NODE = "START"
 
-        total_cases = len(case_log)
+        total_cases = len(variants)
 
-        for _, row in case_log.iterrows():
-            activities = row[seq_variant_col]
+        for activities in variants:
             prev_activity = START_NODE
 
             for activity in activities:
                 transition_key = (prev_activity, activity)
                 if prev_activity != activity or allow_loops:
                     transition_counts[transition_key] += 1
+                    node_weights[activity] += 1
 
-                node_weights[activity] += 1
                 prev_activity = activity
 
         G = nx.MultiDiGraph()

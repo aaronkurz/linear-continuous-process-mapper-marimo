@@ -1,20 +1,17 @@
-import pandas as pd
 import networkx as nx
 from collections import defaultdict
+from typing import List
 
 from .abstract_graph_builder import AbstractGraphBuilder
 
 
 class SequenceBasedPrefixTreeBuilder(AbstractGraphBuilder):
-    def __init__(self, allow_loops: bool = True):
-        self._allow_loops = allow_loops
-
     @property
     def name(self) -> str:
         return "Sequence-Based Prefix Tree"
 
     def build(
-        self, case_log: pd.DataFrame, seq_variant_col: str, allow_loops: bool = True
+        self, variants: List[List[str]], allow_loops: bool = True
     ) -> nx.MultiDiGraph:
         """
         Build a prefix tree where each node is a unique sequence (tuple) of activities.
@@ -23,9 +20,7 @@ class SequenceBasedPrefixTreeBuilder(AbstractGraphBuilder):
         state_counts = defaultdict(int)
         transition_info = defaultdict(lambda: {"count": 0, "activity": None})
 
-        for _, row in case_log.iterrows():
-            activities = row[seq_variant_col]
-
+        for activities in variants:
             current_state = tuple()  # empty prefix
             state_counts[current_state] += 1
 

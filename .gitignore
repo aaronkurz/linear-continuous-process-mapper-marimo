@@ -35,5 +35,6 @@ dist/
 
 # Datasets
 datasets/
+logs/
 
 __marimo__/

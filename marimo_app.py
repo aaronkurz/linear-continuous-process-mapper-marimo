@@ -6,8 +6,10 @@ app = marimo.App(width="full")
 
 @app.cell(hide_code=True)
 def _():
+    import black
     import marimo as mo
-    from core.data.data_loader import LOG_SUFFIXES, load_event_log
+
+    import lcm
 
     # Resolved relative to the notebook rather than the working directory, so
     # the notebook can be launched from anywhere.
@@ -17,7 +19,7 @@ def _():
         log_names = sorted(
             p.name
             for p in log_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in LOG_SUFFIXES
+            if p.is_file() and p.suffix.lower() in lcm.LOG_SUFFIXES
         )
 
     mo.stop(
@@ -35,14 +37,14 @@ def _():
         value="log.csv" if "log.csv" in log_names else log_names[0],
         label="Event log",
     )
-    return load_event_log, log_dir, log_picker, mo
+    return black, lcm, log_dir, log_picker, mo
 
 
 @app.cell(hide_code=True)
-def _(load_event_log, log_dir, log_picker, mo):
+def _(lcm, log_dir, log_picker, mo):
     # Show a readable message for a bad file instead of a traceback.
     try:
-        event_log = load_event_log(log_dir / log_picker.value)
+        lcm_service = lcm.get_service(lcm.load_event_log(log_dir / log_picker.value))
     except Exception as _e:
         mo.stop(
             True,
@@ -50,117 +52,45 @@ def _(load_event_log, log_dir, log_picker, mo):
                 mo.md(f"Could not load `{log_picker.value}`: {_e}"), kind="danger"
             ),
         )
-    return (event_log,)
+    return (lcm_service,)
 
 
 @app.cell(hide_code=True)
-def _(event_log):
-    from app.factory import create_process_analytics_service
-    from core.constants import ACTIVITY_COL
-
-    def apply_folds(log, fold_specs):
-        """Rename every folded activity to its fold name."""
-        if not fold_specs:
-            return log
-        mapping = {
-            act: fold["name"] for fold in fold_specs for act in fold["activities"]
-        }
-        folded = log.copy()
-        folded[ACTIVITY_COL] = folded[ACTIVITY_COL].replace(mapping)
-        return folded
-
-    # Built once from the unfolded log. This is the source of truth for which
-    # activities exist, so the folding UI keeps offering original activity names
-    # no matter what folds are currently defined. It is also reused directly
-    # whenever the committed view has no folds, which avoids a ~0.6s rebuild.
-    base_service = create_process_analytics_service(event_log)
-    base_activities = base_service.get_all_activities()
-    return (
-        apply_folds,
-        base_activities,
-        base_service,
-        create_process_analytics_service,
-    )
-
-
-@app.cell(hide_code=True)
-def _(base_activities):
-    def build_view(folds, activities, builder, allow_loops, show_empty):
-        """The single constructor for a committed view snapshot.
-
-        Used both by the Refresh button and by the staleness check, so the two
-        can never drift apart.
-        """
-        return {
-            "folds": folds,
-            "activities": list(activities or []),
-            "builder": builder,
-            "allow_loops": allow_loops,
-            "show_empty": show_empty,
-        }
-
-    def views_equal(a, b):
-        """Compare two snapshots, ignoring activity selection order."""
-        if a is None or b is None:
-            return a is b
-
-        def _normalised(view):
-            return {**view, "activities": sorted(view["activities"])}
-
-        return _normalised(a) == _normalised(b)
-
-    # What the map renders before anything has been committed.
-    default_view = build_view(
-        folds=[],
-        activities=base_activities,
-        builder="set_based",
-        allow_loops=True,
-        show_empty=True,
-    )
-    return build_view, default_view, views_equal
-
-
-@app.cell(hide_code=True)
-def _(event_log, mo):
-    # Referencing the log makes this cell re-run when another log is picked,
-    # which resets folds and the committed view; they name activities that
+def _(lcm_service, mo):
+    # Referencing the service makes this cell re-run when another log is picked,
+    # which resets folds and the committed settings; they name activities that
     # may not exist in the new log.
-    event_log
+    lcm_service
 
-    # A fold is {"name": str, "activities": [str]}.
-    get_folds, set_folds = mo.state([])
+    # Fold name mapped to its activities, as `generate` takes them.
+    get_folds, set_folds = mo.state({})
     get_fold_error, set_fold_error = mo.state("")
 
-    # The committed view: the only thing the (expensive) map cell depends on.
-    # Controls write into it via the Refresh button, never directly, so
-    # fiddling with a control does not trigger a rebuild.
-    get_view, set_view = mo.state(None)
+    # The arguments of the map on screen. Only the Refresh button writes them,
+    # so changing a control does not redraw the map.
+    get_settings, set_settings = mo.state(
+        {"map_type": "set_based", "allow_loops": True, "visualize_empty_cases": True}
+    )
     return (
         get_fold_error,
         get_folds,
-        get_view,
+        get_settings,
         set_fold_error,
         set_folds,
-        set_view,
+        set_settings,
     )
 
 
 @app.cell(hide_code=True)
-def _(base_activities, get_folds):
+def _(get_folds, lcm_service):
     folds = get_folds()
 
     # An activity may belong to at most one fold, so anything already folded is
     # withheld from the "activities to fold" picker.
-    already_folded = {act for fold in folds for act in fold["activities"]}
-    foldable_activities = sorted(set(base_activities) - already_folded)
-
-    # What the map's activity picker should offer. Computed directly rather
-    # than via `service.get_all_activities()` so that adding a fold does not
-    # cost a service rebuild -- that only happens on Refresh.
-    map_activities = sorted(
-        (set(base_activities) - already_folded) | {fold["name"] for fold in folds}
-    )
-    return folds, foldable_activities, map_activities
+    already_folded = {act for members in folds.values() for act in members}
+    foldable_activities = sorted(set(lcm_service.get_all_activities()) - already_folded)
+    map_activities = lcm_service.get_all_activities(folds)
+    return foldable_activities, folds, map_activities
 
 
 @app.cell(hide_code=True)
@@ -180,32 +110,27 @@ def _(
     fold_activities_input,
     fold_name_input,
     get_folds,
+    lcm_service,
     mo,
     set_fold_error,
     set_folds,
 ):
     def _add_fold(_):
-        # Validation mirrors core/services/fold_manager.py::add_fold.
         name = (fold_name_input.value or "").strip()
-        activities = list(fold_activities_input.value or [])
         existing = get_folds()
-
-        if not activities or not name:
-            set_fold_error("Select at least one activity and enter a fold name.")
-            return
-        if any(fold["name"] == name for fold in existing):
+        if name in existing:
             set_fold_error(f"A fold named '{name}' already exists.")
             return
-        for fold in existing:
-            clash = [act for act in activities if act in fold["activities"]]
-            if clash:
-                set_fold_error(
-                    f"{', '.join(clash)} already belongs to fold '{fold['name']}'."
-                )
-                return
+
+        extended = {**existing, name: list(fold_activities_input.value or [])}
+        try:
+            lcm_service.get_all_activities(extended)
+        except ValueError as e:
+            set_fold_error(str(e))
+            return
 
         set_fold_error("")
-        set_folds(existing + [{"name": name, "activities": activities}])
+        set_folds(extended)
 
     add_fold_button = mo.ui.button(label="Add fold", on_click=_add_fold)
     return (add_fold_button,)
@@ -216,15 +141,13 @@ def _(folds, get_folds, mo, set_fold_error, set_folds):
     def _make_remove_button(name):
         def _remove(_):
             set_fold_error("")
-            set_folds([f for f in get_folds() if f["name"] != name])
+            set_folds({k: v for k, v in get_folds().items() if k != name})
 
         return mo.ui.button(label="Remove", on_click=_remove)
 
     # Keyed by fold name (unique, enforced above) rather than by index, so a
     # removal cannot act on a stale position.
-    remove_fold_buttons = mo.ui.array(
-        [_make_remove_button(fold["name"]) for fold in folds]
-    )
+    remove_fold_buttons = mo.ui.array([_make_remove_button(name) for name in folds])
     return (remove_fold_buttons,)
 
 
@@ -242,13 +165,13 @@ def _(
         _rows = [
             mo.hstack(
                 [
-                    mo.md(f"**{fold['name']}** &nbsp; {', '.join(fold['activities'])}"),
+                    mo.md(f"**{name}** &nbsp; {', '.join(members)}"),
                     remove_fold_buttons[i],
                 ],
                 justify="space-between",
                 align="center",
             )
-            for i, fold in enumerate(folds)
+            for i, (name, members) in enumerate(folds.items())
         ]
         _existing = mo.vstack(_rows, gap=0.5)
     else:
@@ -276,6 +199,23 @@ def _(
 
 
 @app.cell(hide_code=True)
+def _(mo):
+    # Apart from the activity picker, so these keep their values when folds change.
+    map_type = mo.ui.dropdown(
+        options={
+            "Set-Based": "set_based",
+            "Sequence-Based": "sequence_based",
+            "Last-Activity-Based": "last_activity_based",
+        },
+        value="Set-Based",
+        label="Map type",
+    )
+    allow_loops = mo.ui.switch(value=True, label="Allow self-loops")
+    visualize_empty_cases = mo.ui.switch(value=True, label="Visualize empty traces")
+    return allow_loops, map_type, visualize_empty_cases
+
+
+@app.cell(hide_code=True)
 def _(map_activities, mo):
     # Recreated whenever the fold set changes, which re-selects every activity
     # including any new fold name.
@@ -284,78 +224,49 @@ def _(map_activities, mo):
         value=map_activities,
         label="Activities",
     )
-    builder = mo.ui.dropdown(
-        options={
-            "Set-Based": "set_based",
-            "Sequence-Based": "sequence_based",
-            "Last-Activity-Based": "last_activity_based",
-        },
-        value="Set-Based",
-        label="Generic map",
-    )
-    allow_loops = mo.ui.switch(value=True, label="Allow self-loops")
-    show_empty = mo.ui.switch(value=True, label="Visualize empty traces")
-    return activities, allow_loops, builder, show_empty
+    return (activities,)
 
 
 @app.cell(hide_code=True)
 def _(
     activities,
     allow_loops,
-    build_view,
-    builder,
     folds,
-    mo,
-    set_view,
-    show_empty,
+    map_activities,
+    map_type,
+    visualize_empty_cases,
 ):
-    def _commit(_):
-        set_view(
-            build_view(
-                folds=folds,
-                activities=activities.value,
-                builder=builder.value,
-                allow_loops=allow_loops.value,
-                show_empty=show_empty.value,
-            )
-        )
+    # The arguments for `generate` that the controls currently describe.
+    settings = {
+        "map_type": map_type.value,
+        "allow_loops": allow_loops.value,
+        "visualize_empty_cases": visualize_empty_cases.value,
+    }
+    if folds:
+        settings["folds"] = folds
+    if set(activities.value) != set(map_activities):
+        settings["activities"] = sorted(activities.value)
+    return (settings,)
 
+
+@app.cell(hide_code=True)
+def _(mo, set_settings, settings):
     # A plain button rather than `mo.ui.run_button`: `run_button.value` resets
     # on unrelated re-runs, which would blank the map whenever a control
     # changed. An on_click callback fires only on an actual click.
     refresh_button = mo.ui.button(
-        label="Refresh visualization", kind="success", on_click=_commit
+        label="Refresh visualization",
+        kind="success",
+        on_click=lambda _: set_settings(settings),
     )
     return (refresh_button,)
 
 
 @app.cell(hide_code=True)
-def _(
-    activities,
-    allow_loops,
-    build_view,
-    builder,
-    default_view,
-    folds,
-    get_view,
-    mo,
-    show_empty,
-    views_equal,
-):
-    # Pure comparison -- writes no state -- so re-running it on every control
-    # change is free and cannot disturb the committed view.
-    _pending = build_view(
-        folds=folds,
-        activities=activities.value,
-        builder=builder.value,
-        allow_loops=allow_loops.value,
-        show_empty=show_empty.value,
-    )
-    _committed = get_view() or default_view
-
-    # Compares values, not events: changing a control and changing it back
-    # clears the badge again.
-    if views_equal(_pending, _committed):
+def _(get_settings, mo, settings):
+    # Apart from the button: a state setter does not re-run its own cell, so
+    # this would otherwise miss the click.
+    if settings == get_settings():
         refresh_status = mo.md(
             '<span style="color: #15803d;">&#10003; Showing current settings</span>'
         )
@@ -371,19 +282,21 @@ def _(
 def _(
     activities,
     allow_loops,
-    builder,
     folding_panel,
     log_picker,
+    map_type,
     mo,
     refresh_button,
     refresh_status,
-    show_empty,
+    visualize_empty_cases,
 ):
     mo.vstack(
         [
             mo.md("## Linear Continuous Process Mapper"),
             log_picker,
-            mo.hstack([builder, allow_loops, show_empty], justify="start", gap=2),
+            mo.hstack(
+                [map_type, allow_loops, visualize_empty_cases], justify="start", gap=2
+            ),
             activities,
             folding_panel,
             mo.hstack(
@@ -399,56 +312,44 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(
-    apply_folds,
-    base_service,
-    create_process_analytics_service,
-    default_view,
-    event_log,
-    get_view,
-    mo,
-):
-    # Depends only on the committed view, so control changes never land here.
-    _view = get_view() or default_view
+def _(black):
+    def to_code(settings):
+        """Write `settings` as a call to paste into a cell of its own."""
+        arguments = ", ".join(f"{k}={v!r}" for k, v in settings.items())
+        # Not `figure, metadata`: marimo needs names unique across cells.
+        call = f"fixed_map, fixed_metadata = lcm_service.generate({arguments})\nfixed_map"
+        return black.format_str(call, mode=black.Mode()).strip()
 
-    if _view["folds"]:
-        _service = create_process_analytics_service(
-            apply_folds(event_log, _view["folds"])
-        )
-    else:
-        _service = base_service
+    return (to_code,)
 
-    if not _view["activities"]:
-        result = mo.md("*Select at least one activity, then click Refresh.*")
-    else:
-        figure, metadata = _service.generate_sankey_figure(
-            selected_activities=_view["activities"],
-            builder_key=_view["builder"],
-            merge_threshold=None,
-            allow_loops=_view["allow_loops"],
-            visualize_empty_cases=_view["show_empty"],
-        )
-        figure.update_layout(height=700)
-        result = mo.vstack(
-            [
-                # Render the figure directly. Do NOT wrap it in `mo.ui.plotly()`:
-                # that wrapper adds Plotly selection-event handling, which Sankey
-                # traces do not support, and it fails at render time with
-                # "Cannot read properties of null (reading 'getAttribute')",
-                # leaving a blank plot area. Hover and node dragging still work.
-                figure,
-                mo.md(
-                    " · ".join(
-                        f"**{k}**: {v}"
-                        for k, v in (
-                            _service.summarize_metadata(metadata) or {}
-                        ).items()
+
+@app.cell
+def _(get_settings, lcm_service, mo, to_code):
+    _settings = get_settings()
+    try:
+        _figure, _metadata = lcm_service.generate(**_settings)
+    except ValueError as _e:
+        mo.stop(True, mo.callout(mo.md(str(_e)), kind="danger"))
+
+    _summary = lcm_service.summarize_metadata(_metadata)
+    mo.vstack(
+        [
+            # Render the figure directly. Do NOT wrap it in `mo.ui.plotly()`:
+            # that wrapper adds Plotly selection-event handling, which Sankey
+            # traces do not support, and it fails at render time with
+            # "Cannot read properties of null (reading 'getAttribute')",
+            # leaving a blank plot area. Hover and node dragging still work.
+            _figure,
+            mo.md(" · ".join(f"**{k}**: {v}" for k, v in _summary.items())),
+            mo.accordion(
+                {
+                    "Reproduce this map in code": mo.md(
+                        f"```python\n{to_code(_settings)}\n```"
                     )
-                ),
-            ]
-        )
-
-    result
+                }
+            ),
+        ]
+    )
     return
 
 
