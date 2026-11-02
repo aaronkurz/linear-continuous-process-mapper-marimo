@@ -1,67 +1,38 @@
 [project]
 name = "linear-continuous-process-mapper"
 version = "0.1.0"
-description = "Add your description here"
+description = "Linear continuous process maps of event logs as Plotly Sankey figures."
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "anyio==4.9.0",
-    "black==25.1.0",
-    "choreographer==1.0.10",
-    "click==8.2.1",
-    "contourpy==1.3.3",
-    "cvxopt==1.3.2",
-    "cycler==0.12.1",
-    "deprecation==2.1.0",
-    "fonttools==4.59.0",
-    "graphviz==0.21",
-    "h11==0.16.0",
-    "idna==3.10",
-    "intervaltree==3.1.0",
-    "itsdangerous==2.2.0",
-    "jedi==0.19.2",
-    "kaleido==1.0.0",
-    "kiwisolver==1.4.8",
-    "logistro==1.1.0",
-    "lxml==6.0.0",
-    "marimo>=0.21.1",
-    "matplotlib==3.10.3",
-    "mypy-extensions==1.1.0",
-    "narwhals==2.0.1",
-    "networkx==3.5",
-    "numpy==2.3.2",
-    "orjson==3.11.3",
-    "packaging==25.0",
-    "pandas==2.3.1",
-    "parso==0.8.4",
-    "pathspec==0.12.1",
-    "pillow==11.3.0",
-    "platformdirs==4.3.8",
-    "plotly==6.2.0",
-    "pm4py==2.7.16",
-    "psutil==7.0.0",
-    "pydotplus==2.0.2",
-    "pygments==2.19.2",
-    "pyparsing==3.2.3",
-    "python-dateutil==2.9.0.post0",
-    "pytz==2025.2",
-    "pyyaml==6.0.2",
-    "rustxes==0.2.11",
-    "scipy==1.16.1",
-    "seaborn==0.13.2",
-    "setuptools==80.9.0",
-    "simplejson==3.20.1",
-    "six==1.17.0",
-    "sniffio==1.3.1",
-    "sortedcontainers==2.4.0",
-    "tqdm==4.67.1",
-    "tzdata==2025.2",
-    "wheel==0.45.1",
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "ICS University St. Gallen" }]
+keywords = ["process mining", "event log", "process map", "sankey"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Information Analysis",
 ]
+requires-python = ">=3.11"
+dependencies = [
+    "networkx>=3.2",
+    "pandas>=2.2",
+    "plotly>=5.20",
+    "pm4py>=2.7.11",
+]
+
+[project.optional-dependencies]
+# The interactive marimo notebook (marimo_app.py) and static image export.
+notebook = ["marimo>=0.21.1", "kaleido>=1.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/aaronkurz/linear-continuous-process-mapper-marimo"
+Repository = "https://github.com/aaronkurz/linear-continuous-process-mapper-marimo"
 
 [dependency-groups]
 dev = [
     "pytest",
+    "marimo>=0.21.1",
+    "kaleido>=1.0.0",
 ]
 
 [build-system]
