@@ -51,6 +51,14 @@ Its reuse and redistribution are subject to that license, including its
 attribution and noncommercial-use conditions. The repository’s MIT license
 applies to the code, not to this dataset.
 
+## Install
+
+```
+pip install linear-continuous-process-mapper
+```
+
+This installs the `lcm` library only. The interactive notebook needs the extra: `pip install "linear-continuous-process-mapper[notebook]"`.
+
 ## Programmatic Use
 
 The widgets in `marimo_app.py` are one way to call the `lcm` library. The same maps can be drawn from code, without any widgets. To fix a state you found interactively, copy the call from **Reproduce this map in code** below the map.
